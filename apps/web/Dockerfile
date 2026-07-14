@@ -10,7 +10,10 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Coolify injects ARGs/ENV earlier in the stage; pin build-only DB + skip bootstrap seed.
 ENV DATABASE_URL=file:/tmp/build.db
+ENV BOOTSTRAP_ADMIN_EMAIL=
+ENV BOOTSTRAP_ADMIN_PASSWORD=
 ENV ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ENV BETTER_AUTH_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 # Fonts are committed under public/fonts - skip setup:fonts in CI/Coolify builds.
