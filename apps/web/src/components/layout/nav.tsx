@@ -13,7 +13,6 @@ import {
   MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Logo } from "@/components/brand/logo";
 import {
   Sheet,
   SheetContent,
@@ -53,13 +52,13 @@ function NavLink({
     <Link
       href={href}
       className={cn(
-        "flex items-center gap-3 rounded-md px-3 py-2 text-small font-medium transition-colors",
+        "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-small font-medium transition-colors",
         active
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
       )}
     >
-      <Icon className="h-4 w-4" strokeWidth={1.75} />
+      <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
       {label}
     </Link>
   );
@@ -70,11 +69,16 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
   const items = isAdmin ? [...navItems, ...adminNavItems] : navItems;
 
   return (
-    <aside className="relative z-[60] hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-card md:flex">
-      <div className="flex h-16 shrink-0 items-center border-b border-border px-6">
-        <Logo href="/overview" />
+    <aside className="relative z-[60] hidden h-dvh w-52 shrink-0 flex-col border-r border-border bg-card md:flex">
+      <div className="flex h-12 shrink-0 items-center border-b border-border px-4">
+        <Link
+          href="/overview"
+          className="truncate text-small font-semibold tracking-tight text-foreground"
+        >
+          Platform Control
+        </Link>
       </div>
-      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">
         {items.map((item) => (
           <NavLink
             key={item.href}
