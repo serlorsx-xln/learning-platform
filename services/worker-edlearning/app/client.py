@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -33,11 +34,21 @@ class EdClient:
         self.school = school
         self.education_id = education_id
         self.base_url = "https://edwebservices2.engdis.com/api"
-        self.client = httpx.Client(timeout=30.0, follow_redirects=True)
+        # httpx.Client is not thread-safe; keep a main client + per-thread clones.
+        self._main = httpx.Client(timeout=30.0, follow_redirects=True)
+        self._tls = threading.local()
         self.tab = str(uuid.uuid4())
         self.token = ""
         self.info: dict[str, Any] = {}
         self.course_id = 0
+
+    def _http(self) -> httpx.Client:
+        client = getattr(self._tls, "client", None)
+        if client is None:
+            client = httpx.Client(timeout=30.0, follow_redirects=True)
+            client.cookies.update(self._main.cookies)
+            self._tls.client = client
+        return client
 
     def _headers(self) -> dict[str, str]:
         headers = {
@@ -53,7 +64,7 @@ class EdClient:
 
     def login(self, username: str, password: str) -> bool:
         domain = f"{self.education_id}.engdis.com/{self.school}"
-        resp = self.client.get(f"https://{domain}")
+        resp = self._main.get(f"https://{domain}")
         community_value = ""
         for cookie in resp.cookies.jar:
             if cookie.name == "Community":
@@ -73,7 +84,7 @@ class EdClient:
             f"{self.base_url}/Auth/ForceLogin/?CommunityVersion={comm.get('CommunityVersion')}"
             f"&needOptIn=true&cannonicalDomain={quote(domain, safe='')}"
         )
-        resp = self.client.post(url, json=login_body, headers=self._headers())
+        resp = self._main.post(url, json=login_body, headers=self._headers())
         if resp.status_code != 200:
             return False
         data = resp.json()
@@ -82,7 +93,7 @@ class EdClient:
         return bool(self.token)
 
     def get_course_tree(self) -> list[dict[str, Any]]:
-        resp = self.client.get(
+        resp = self._http().get(
             f"{self.base_url}/CourseTree/GetDefaultCourseProgress",
             headers=self._headers(),
         )
@@ -128,7 +139,7 @@ class EdClient:
             "particleHasProgress": True,
             "lowestNodeType": 5,
         }]
-        resp = self.client.post(url, json=body, headers=self._headers())
+        resp = self._http().post(url, json=body, headers=self._headers())
         if resp.status_code != 200:
             return []
         data = resp.json()
@@ -139,10 +150,16 @@ class EdClient:
     def set_progress_per_task(self, item_id: int) -> bool:
         url = f"{self.base_url}/Progress/SetProgressPerTask"
         body = {"CourseId": self.course_id, "ItemId": item_id}
-        for _ in range(MAX_RETRY):
-            resp = self.client.post(url, json=body, headers=self._headers())
-            if resp.status_code == 201:
-                return True
+        for attempt in range(MAX_RETRY):
+            try:
+                resp = self._http().post(url, json=body, headers=self._headers())
+                if resp.status_code == 201:
+                    return True
+            except httpx.HTTPError:
+                if attempt + 1 >= MAX_RETRY:
+                    return False
+                time.sleep(0.05)
+                continue
         return False
 
     def start_lesson(self, lesson_id: int, session_id: str) -> bool:
@@ -157,12 +174,12 @@ class EdClient:
             "LessonSessionId": session_id,
             "Status": "S",
         }
-        resp = self.client.post(url, json=body, headers=self._headers())
+        resp = self._http().post(url, json=body, headers=self._headers())
         return resp.status_code == 201
 
     def ping(self, session_id: str) -> bool:
         url = f"{self.base_url}/Ping/Ping?lessonSessionId={session_id}"
-        resp = self.client.put(url, headers=self._headers())
+        resp = self._http().put(url, headers=self._headers())
         return resp.status_code == 200
 
     def update_progress(self, lesson_id: int, unit_id: int, session_id: str) -> bool:
@@ -173,12 +190,12 @@ class EdClient:
             "ComponentId": str(lesson_id),
             "lessonSessionId": session_id,
         }
-        resp = self.client.put(url, json=body, headers=self._headers())
+        resp = self._http().put(url, json=body, headers=self._headers())
         return resp.status_code == 201
 
     def get_lesson_data(self, lesson_code: str) -> dict[str, Any] | None:
         url = f"https://static.engdis.com/edprod01/edprod//Runtime/Lessons/{lesson_code}.js"
-        resp = self.client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+        resp = self._http().get(url, headers={"User-Agent": "Mozilla/5.0"})
         if resp.status_code != 200:
             return None
         content = resp.text
@@ -216,7 +233,7 @@ class EdClient:
             f"https://static.engdis.com/edprod01/edprod//Runtime/Content/"
             f"{content_type}/{lesson_code_base}/{item_code}.js"
         )
-        resp = self.client.get(
+        resp = self._http().get(
             url,
             headers={
                 "User-Agent": "Mozilla/5.0",
@@ -229,7 +246,7 @@ class EdClient:
 
     def save_user_test(self, unit_id: int, lesson_id: int, items: list[dict], time_ms: int = 30000):
         url = f"{self.base_url}/UserTestV1/SaveUserTest/{unit_id}/{lesson_id}/true"
-        resp = self.client.post(url, json={"a": items, "t": time_ms}, headers=self._headers())
+        resp = self._http().post(url, json={"a": items, "t": time_ms}, headers=self._headers())
         if resp.status_code != 200:
             return None
         return resp.json()
@@ -372,8 +389,11 @@ class EdClient:
         with ThreadPoolExecutor(max_workers=MAX_CONCURRENT) as pool:
             futures = {pool.submit(self.set_progress_per_task, t["nodeId"]): t for t in all_tasks}
             for future in as_completed(futures):
-                if future.result():
-                    task_ok += 1
+                try:
+                    if future.result():
+                        task_ok += 1
+                except Exception as exc:
+                    emit(f"Task submit error: {exc}")
 
         emit(f"Tasks complete: {task_ok}/{len(all_tasks)}")
 
@@ -409,7 +429,11 @@ class EdClient:
                     pool.submit(self._fetch_submit_item, res_path, ti) for ti in test_items
                 ]
                 for future in as_completed(futures):
-                    item = future.result()
+                    try:
+                        item = future.result()
+                    except Exception as exc:
+                        emit(f"Answer fetch error: {exc}")
+                        continue
                     if item:
                         submit_items.append(item)
 
