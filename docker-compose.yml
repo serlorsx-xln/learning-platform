@@ -12,6 +12,14 @@ services:
       WORKER_ANDREWBIGGS_URL: http://worker-andrewbiggs:8001
       WORKER_EDLEARNING_URL: http://worker-edlearning:8002
       WORKER_SPEEXX_URL: http://worker-speexx:8003
+      # Coolify injects these via compose --env-file; must be listed for seed/auth.
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD}
     volumes:
       - platform-data:/app/data
     # Coolify/Traefik: expose only (no host bind) so it does not clash on main.

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { account, user } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -6,17 +7,40 @@ import { auth } from "@/lib/auth";
 
 async function setCredentialPassword(userId: string, email: string, password: string) {
   const hashed = await hashPassword(password);
-  await db
-    .update(account)
-    .set({ password: hashed, accountId: email, updatedAt: new Date() })
-    .where(and(eq(account.userId, userId), eq(account.providerId, "credential")));
+  const existing = await db
+    .select({ id: account.id })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.providerId, "credential")))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(account)
+      .set({ password: hashed, accountId: email, updatedAt: new Date() })
+      .where(eq(account.id, existing[0].id));
+    return;
+  }
+
+  const now = new Date();
+  await db.insert(account).values({
+    id: randomUUID(),
+    accountId: email,
+    providerId: "credential",
+    userId,
+    password: hashed,
+    createdAt: now,
+    updatedAt: now,
+  });
 }
 
 export async function seedDatabase() {
-  const email = process.env.BOOTSTRAP_ADMIN_EMAIL;
+  const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim();
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
 
-  if (!email || !password) return;
+  if (!email || !password) {
+    console.warn("Bootstrap admin skipped: BOOTSTRAP_ADMIN_EMAIL/PASSWORD not set");
+    return;
+  }
 
   const existing = await db.select().from(user).where(eq(user.email, email)).limit(1);
   if (existing.length > 0) {
