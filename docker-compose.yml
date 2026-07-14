@@ -18,6 +18,21 @@ services:
     # Local overlay still binds 0.0.0.0:3000 via docker-compose.local.yml.
     expose:
       - "3000"
+    networks:
+      - default
+      - coolify
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.learning-http.rule=Host(`learning.slynxstudio.net`)
+      - traefik.http.routers.learning-http.entrypoints=http
+      - traefik.http.routers.learning-https.rule=Host(`learning.slynxstudio.net`)
+      - traefik.http.routers.learning-https.entrypoints=https
+      - traefik.http.routers.learning-https.tls=true
+      - traefik.http.routers.learning-https.tls.certresolver=letsencrypt
+      - traefik.http.services.learning.loadbalancer.server.port=3000
+      - traefik.http.routers.learning-http.service=learning
+      - traefik.http.routers.learning-https.service=learning
     depends_on:
       worker-andrewbiggs:
         condition: service_healthy
@@ -35,6 +50,8 @@ services:
   worker-andrewbiggs:
     build: ./services/worker-andrewbiggs
     restart: unless-stopped
+    networks:
+      - default
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
       interval: 15s
@@ -44,6 +61,8 @@ services:
   worker-edlearning:
     build: ./services/worker-edlearning
     restart: unless-stopped
+    networks:
+      - default
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
       interval: 15s
@@ -53,6 +72,8 @@ services:
   worker-speexx:
     build: ./services/worker-speexx
     restart: unless-stopped
+    networks:
+      - default
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health')"]
       interval: 15s
@@ -61,3 +82,7 @@ services:
 
 volumes:
   platform-data:
+
+networks:
+  coolify:
+    external: true
