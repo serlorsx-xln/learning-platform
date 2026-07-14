@@ -1,22 +1,51 @@
 import { db } from "@/lib/db";
-import { user } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { account, user } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
+import { hashPassword } from "better-auth/crypto";
 import { auth } from "@/lib/auth";
+
+async function setCredentialPassword(userId: string, email: string, password: string) {
+  const hashed = await hashPassword(password);
+  const updated = await db
+    .update(account)
+    .set({ password: hashed, accountId: email, updatedAt: new Date() })
+    .where(and(eq(account.userId, userId), eq(account.providerId, "credential")));
+  return updated;
+}
 
 export async function seedDatabase() {
   const email = process.env.BOOTSTRAP_ADMIN_EMAIL;
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
 
-  if (email && password) {
-    const existing = await db.select().from(user).where(eq(user.email, email)).limit(1);
-    if (existing.length === 0) {
-      await auth.api.signUpEmail({
-        body: { name: "Admin", email, password },
-      });
-      await db.update(user).set({ role: "admin" }).where(eq(user.email, email));
-      console.log(`Bootstrap admin created: ${email}`);
-    }
+  if (!email || !password) return;
+
+  const existing = await db.select().from(user).where(eq(user.email, email)).limit(1);
+  if (existing.length > 0) {
+    await setCredentialPassword(existing[0].id, email, password);
+    await db
+      .update(user)
+      .set({ role: "admin", banned: false, updatedAt: new Date() })
+      .where(eq(user.id, existing[0].id));
+    console.log(`Bootstrap admin synced: ${email}`);
+    return;
   }
+
+  const admins = await db.select().from(user).where(eq(user.role, "admin")).limit(1);
+  if (admins.length === 1) {
+    await db
+      .update(user)
+      .set({ email, name: "Admin", role: "admin", banned: false, updatedAt: new Date() })
+      .where(eq(user.id, admins[0].id));
+    await setCredentialPassword(admins[0].id, email, password);
+    console.log(`Bootstrap admin migrated to: ${email}`);
+    return;
+  }
+
+  await auth.api.signUpEmail({
+    body: { name: "Admin", email, password },
+  });
+  await db.update(user).set({ role: "admin" }).where(eq(user.email, email));
+  console.log(`Bootstrap admin created: ${email}`);
 }
 
 export async function listUsers() {
