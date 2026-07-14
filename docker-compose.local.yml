@@ -1,7 +1,5 @@
 # Local-only overlay (not used by Coolify).
-# Usage:
-#   docker network create coolify 2>/dev/null || true
-#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+# Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 
 services:
   app:

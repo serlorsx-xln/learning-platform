@@ -6,13 +6,6 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
     restart: unless-stopped
-    # Stay on Coolify's proxy network so Traefik can reach app after every redeploy.
-    networks:
-      - default
-      - coolify
-    labels:
-      # Tell Traefik which network to use when the container has multiple nets.
-      - traefik.docker.network=coolify
     environment:
       DATABASE_URL: file:/app/data/platform.db
       INTERNAL_CALLBACK_URL: http://app:3000
@@ -23,6 +16,7 @@ services:
       - platform-data:/app/data
     # Coolify/Traefik: expose only (no host bind) so it does not clash on main.
     # Local overlay still binds 0.0.0.0:3000 via docker-compose.local.yml.
+    # Networking/Traefik labels: leave to Coolify (extra coolify network broke public Traefik).
     expose:
       - "3000"
     depends_on:
@@ -68,10 +62,3 @@ services:
 
 volumes:
   platform-data:
-
-# Coolify proxy listens on this external network. Local: create once with
-# `docker network create coolify` before compose up.
-networks:
-  coolify:
-    name: coolify
-    external: true
