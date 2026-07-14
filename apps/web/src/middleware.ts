@@ -19,6 +19,10 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    // Coolify / Traefik probes hit `/` and expect HTTP 200 - rewrite instead of redirect.
+    if (pathname === "/") {
+      return NextResponse.rewrite(new URL("/login", request.url));
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
