@@ -75,7 +75,7 @@ export function Sidebar({ isAdmin }: { isAdmin: boolean }) {
           href="/overview"
           className="truncate text-small font-semibold tracking-tight text-foreground"
         >
-          Platform Control
+          ELearning
         </Link>
       </div>
       <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto p-2">

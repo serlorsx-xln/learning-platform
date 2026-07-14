@@ -5,7 +5,7 @@ import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Platform Control",
+  title: "ELearning",
   description: "Internal automation control dashboard",
 };
 

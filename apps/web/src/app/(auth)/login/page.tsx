@@ -79,7 +79,7 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen bg-background">
       <div className="hidden flex-1 flex-col justify-between border-r border-border bg-card p-6 md:flex md:p-8">
-        <p className="text-small font-semibold tracking-tight">Platform Control</p>
+        <p className="text-small font-semibold tracking-tight">ELearning</p>
         <div className="space-y-3">
           <p className="text-caption font-medium text-muted-foreground">Internal ops</p>
           <h1 className="max-w-md text-h1 font-bold">
@@ -95,7 +95,7 @@ export default function LoginPage() {
       <div className="flex flex-1 items-center justify-center p-4 md:p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="md:hidden">
-            <p className="text-small font-semibold tracking-tight">Platform Control</p>
+            <p className="text-small font-semibold tracking-tight">ELearning</p>
             <h1 className="mt-4 text-h1 font-bold">Sign in</h1>
             <p className="mt-1 text-small text-muted-foreground">Internal automation dashboard</p>
           </div>

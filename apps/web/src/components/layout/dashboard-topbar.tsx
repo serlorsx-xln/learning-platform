@@ -15,7 +15,7 @@ export function DashboardTopbar({
         href="/overview"
         className="truncate text-small font-semibold tracking-tight md:hidden"
       >
-        Platform Control
+        ELearning
       </Link>
       <div className="hidden md:block" />
       <div className="flex items-center gap-1">

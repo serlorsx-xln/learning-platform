@@ -1,8 +1,8 @@
 apiVersion: coolify/v1
 kind: Project
 metadata:
-  name: learning
-  displayName: Learning Platform
+  name: elearning
+  displayName: elearning
 spec:
   runtime: docker
   server: main

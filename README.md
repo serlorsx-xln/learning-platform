@@ -1,4 +1,4 @@
-# Platform Control Dashboard
+# ELearning
 
 Internal automation control dashboard for Andrew Biggs, EdLearning, and Speexx. Standalone Docker stack with encrypted job history, multi-user auth, and parallel worker dispatch.
 
