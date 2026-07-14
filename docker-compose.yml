@@ -1,8 +1,11 @@
+name: learning
+
 services:
   web:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+    restart: unless-stopped
     environment:
       DATABASE_URL: file:/app/data/platform.db
       INTERNAL_CALLBACK_URL: http://web:3000
@@ -23,34 +26,38 @@ services:
       worker-speexx:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://$$(hostname):3000/api/health || exit 1"]
-      interval: 30s
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
+      start_period: 40s
 
   worker-andrewbiggs:
     build: ./services/worker-andrewbiggs
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
-      interval: 30s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   worker-edlearning:
     build: ./services/worker-edlearning
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
-      interval: 30s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
 
   worker-speexx:
     build: ./services/worker-speexx
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
-      interval: 30s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health')"]
+      interval: 15s
       timeout: 5s
-      retries: 3
+      retries: 5
 
 volumes:
   platform-data:
