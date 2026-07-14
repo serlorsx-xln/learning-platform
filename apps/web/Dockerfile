@@ -10,27 +10,28 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-# Coolify injects ARGs/ENV earlier in the stage; pin build-only DB + skip bootstrap seed.
-ENV DATABASE_URL=file:/tmp/build.db
-ENV BOOTSTRAP_ADMIN_EMAIL=
-ENV BOOTSTRAP_ADMIN_PASSWORD=
 ENV ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ENV BETTER_AUTH_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-# Fonts are committed under public/fonts - skip setup:fonts in CI/Coolify builds.
-RUN npm rebuild better-sqlite3 && npm run build
+# Inline env wins over Coolify-injected ARG/ENV for this build step.
+RUN npm rebuild better-sqlite3 \
+  && DATABASE_URL=file:/tmp/build.db \
+     BOOTSTRAP_ADMIN_EMAIL= \
+     BOOTSTRAP_ADMIN_PASSWORD= \
+     npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-RUN apt-get update && apt-get install -y wget python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/scripts/docker-entrypoint.mjs ./docker-entrypoint.mjs
 
 RUN mkdir -p /app/data
 
 EXPOSE 3000
-CMD ["node", "server.js"]
+CMD ["node", "docker-entrypoint.mjs"]
