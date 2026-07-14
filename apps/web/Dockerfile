@@ -11,7 +11,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL=file:/tmp/build.db
 ENV ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ENV BETTER_AUTH_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-RUN npm rebuild better-sqlite3 && npm run setup:fonts && npm run build
+# Fonts are committed under public/fonts - skip setup:fonts in CI/Coolify builds.
+RUN npm rebuild better-sqlite3 && npm run build
 
 FROM node:22-bookworm-slim AS runner
 WORKDIR /app
