@@ -6,11 +6,10 @@ import { auth } from "@/lib/auth";
 
 async function setCredentialPassword(userId: string, email: string, password: string) {
   const hashed = await hashPassword(password);
-  const updated = await db
+  await db
     .update(account)
     .set({ password: hashed, accountId: email, updatedAt: new Date() })
     .where(and(eq(account.userId, userId), eq(account.providerId, "credential")));
-  return updated;
 }
 
 export async function seedDatabase() {

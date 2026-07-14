@@ -5,6 +5,9 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+      # Docker 29 / Coolify: skip attestations (export often fails mid-manifest).
+      provenance: false
+      sbom: false
     restart: unless-stopped
     environment:
       DATABASE_URL: file:/app/data/platform.db
@@ -34,7 +37,10 @@ services:
       start_period: 40s
 
   worker-andrewbiggs:
-    build: ./services/worker-andrewbiggs
+    build:
+      context: ./services/worker-andrewbiggs
+      provenance: false
+      sbom: false
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')"]
@@ -43,7 +49,10 @@ services:
       retries: 5
 
   worker-edlearning:
-    build: ./services/worker-edlearning
+    build:
+      context: ./services/worker-edlearning
+      provenance: false
+      sbom: false
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')"]
@@ -52,7 +61,10 @@ services:
       retries: 5
 
   worker-speexx:
-    build: ./services/worker-speexx
+    build:
+      context: ./services/worker-speexx
+      provenance: false
+      sbom: false
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health')"]
