@@ -1,2 +1,9 @@
-// Bootstrap (migrate + admin seed) runs in docker-entrypoint.mjs so `next build` never opens SQLite.
-export async function register() {}
+export async function register() {
+  // Exact guard required by Next so better-sqlite3 is not bundled for edge.
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    const { runMigrations } = await import("@/lib/db/migrate");
+    const { seedDatabase } = await import("@/lib/db/seed");
+    runMigrations();
+    await seedDatabase();
+  }
+}

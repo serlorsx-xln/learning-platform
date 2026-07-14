@@ -12,7 +12,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 ENV ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
 ENV BETTER_AUTH_SECRET=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-# Inline env wins over Coolify-injected ARG/ENV for this build step.
+# Inline env beats Coolify ARG injection so build never seeds / never hits prod DB.
 RUN npm rebuild better-sqlite3 \
   && DATABASE_URL=file:/tmp/build.db \
      BOOTSTRAP_ADMIN_EMAIL= \
@@ -29,9 +29,8 @@ RUN apt-get update && apt-get install -y wget && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/scripts/docker-entrypoint.mjs ./docker-entrypoint.mjs
 
 RUN mkdir -p /app/data
 
 EXPOSE 3000
-CMD ["node", "docker-entrypoint.mjs"]
+CMD ["node", "server.js"]
