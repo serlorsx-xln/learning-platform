@@ -2,14 +2,10 @@
 # Usage: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 
 services:
-  web:
+  app:
     env_file: .env
     ports:
       - "${WEB_BIND:-0.0.0.0}:3000:3000"
-    labels: []
-    networks:
-      - default
-      - coolify
 
   worker-andrewbiggs:
     env_file: .env
@@ -19,9 +15,3 @@ services:
 
   worker-speexx:
     env_file: .env
-
-# Allow local runs without the Coolify proxy network.
-networks:
-  coolify:
-    external: false
-    driver: bridge

@@ -7,7 +7,7 @@ spec:
   runtime: docker
   server: main
   services:
-    - name: web
+    - name: app
       type: web
       port: 3000
       build:
