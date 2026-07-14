@@ -170,7 +170,8 @@ export default function EdLearningRunPage() {
         </Link>
         <PageHeader
           className="mt-3"
-          description="Load modules to see progress. Choose full run (submit tasks/tests) or time-only mode like the original script."
+          title="EdLearning"
+          subtitle="Load modules to see progress. Choose full run (submit tasks/tests) or time-only mode like the original script."
         />
       </div>
 

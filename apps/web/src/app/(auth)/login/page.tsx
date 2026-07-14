@@ -78,13 +78,13 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className="flex min-h-screen bg-background">
-      <div className="hidden flex-1 flex-col justify-between border-r border-border bg-surface-raised p-6 md:flex md:p-8">
-        <div className="flex items-center gap-3">
-          <span className="h-4 w-4 shrink-0 rounded-[4px] border-2 border-primary" aria-hidden />
-          <p className="text-body-lg font-bold tracking-tight">Platform Control</p>
+      <div className="hidden flex-1 flex-col justify-between border-r border-border bg-card p-6 md:flex md:p-8">
+        <div className="inline-flex items-center gap-2 font-bold tracking-tight">
+          <span className="inline-block h-4 w-4 rounded-[4px] border-2 border-primary" aria-hidden />
+          <span className="text-body-lg leading-none">Platform Control</span>
         </div>
         <div className="space-y-3">
-          <p className="text-eyebrow">Internal ops</p>
+          <p className="text-caption font-medium text-muted-foreground">Internal ops</p>
           <h1 className="max-w-md text-h1 font-bold">
             Automation control for learning platforms.
           </h1>
@@ -98,8 +98,11 @@ export default function LoginPage() {
       <div className="flex flex-1 items-center justify-center p-4 md:p-6">
         <div className="w-full max-w-md space-y-6">
           <div className="md:hidden">
-            <p className="text-eyebrow">Platform Control</p>
-            <h1 className="mt-1 text-h1 font-bold">Sign in</h1>
+            <div className="inline-flex items-center gap-2 font-bold tracking-tight">
+              <span className="inline-block h-4 w-4 rounded-[4px] border-2 border-primary" aria-hidden />
+              <span className="text-body-lg leading-none">Platform Control</span>
+            </div>
+            <h1 className="mt-4 text-h1 font-bold">Sign in</h1>
             <p className="mt-1 text-small text-muted-foreground">Internal automation dashboard</p>
           </div>
 

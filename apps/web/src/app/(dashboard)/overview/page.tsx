@@ -10,7 +10,8 @@ export default async function OverviewPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        description="Monitor automation jobs across all platforms."
+        title="Overview"
+        subtitle="Monitor automation jobs across all platforms."
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

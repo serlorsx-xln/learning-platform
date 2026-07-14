@@ -132,7 +132,8 @@ export default function SpeexxRunPage() {
         </Link>
         <PageHeader
           className="mt-3"
-          description="Load activity status first. Default: 100% activities; enable certificate test only when needed. Use cookie auth if password login fails."
+          title="Speexx"
+          subtitle="Load activity status first. Default: 100% activities; enable certificate test only when needed. Use cookie auth if password login fails."
         />
       </div>
 

@@ -9,7 +9,10 @@ const platforms: Platform[] = ["andrewbiggs", "edlearning", "speexx"];
 export default function RunIndexPage() {
   return (
     <div className="space-y-6">
-      <PageHeader description="Primary channel for automation - load status, submit jobs, and track logs here." />
+      <PageHeader
+        title="Run"
+        subtitle="Primary channel for automation - load status, submit jobs, and track logs here."
+      />
 
       <RunWorkflowGuide />
 

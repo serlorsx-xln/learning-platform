@@ -120,7 +120,10 @@ export default function AdminUsersPage() {
 
   return (
     <div className="min-w-0 space-y-5 sm:space-y-6">
-      <PageHeader description="Manage admin and operator accounts." />
+      <PageHeader
+        title="Users"
+        subtitle="Manage admin and operator accounts."
+      />
 
       <Card>
         <CardHeader>

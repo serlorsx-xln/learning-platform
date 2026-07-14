@@ -197,10 +197,6 @@
   }
 }
 
-.glass-chrome {
-  @apply border-border/60 bg-background/75 backdrop-blur-md;
-}
-
 [data-sonner-toaster] {
   --normal-bg: var(--card);
   --normal-border: var(--border);

@@ -11,11 +11,16 @@ export default async function DashboardLayout({
   const isAdmin = getUserRole(session.user) === "admin";
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden bg-background">
-      <Sidebar isAdmin={isAdmin} userName={session.user.name} userEmail={session.user.email} />
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-16 md:ml-56 md:pb-0">
-        <DashboardTopbar userName={session.user.name} userEmail={session.user.email} />
-        <main className="mx-auto w-full min-w-0 max-w-6xl flex-1 p-3 sm:p-4 md:p-6">{children}</main>
+    <div className="flex h-dvh overflow-hidden bg-background">
+      <Sidebar isAdmin={isAdmin} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <DashboardTopbar
+          userName={session.user.name}
+          userEmail={session.user.email}
+        />
+        <main className="flex-1 overflow-y-auto px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-6 md:px-8 md:pb-10">
+          <div className="mx-auto w-full min-w-0 max-w-6xl">{children}</div>
+        </main>
       </div>
       <BottomNav isAdmin={isAdmin} />
     </div>

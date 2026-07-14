@@ -150,7 +150,8 @@ export default function AndrewBiggsRunPage() {
         </Link>
         <PageHeader
           className="mt-3"
-          description="Load courses, select pending ones, then run. Only incomplete lessons are processed (faster than the original script)."
+          title="Andrew Biggs"
+          subtitle="Load courses, select pending ones, then run. Only incomplete lessons are processed (faster than the original script)."
         />
       </div>
 

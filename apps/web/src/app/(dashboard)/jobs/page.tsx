@@ -27,7 +27,10 @@ export default async function JobsPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader description="History and status of all automation runs." />
+      <PageHeader
+        title="Jobs"
+        subtitle="History and status of all automation runs."
+      />
 
       <Suspense
         fallback={

@@ -63,9 +63,16 @@ export function JobDetailView({ jobId }: { jobId: string }) {
         <Link href="/jobs" className="text-small text-muted-foreground hover:text-foreground">
           ← Back to jobs
         </Link>
-        <PageHeader className="mt-3" description={`${PLATFORM_LABELS[job.platform]} · ${job.accountLabel}`}>
-          <Badge variant={STATUS_BADGE_VARIANTS[job.status]}>{STATUS_LABELS[job.status]}</Badge>
-        </PageHeader>
+        <PageHeader
+          className="mt-3"
+          title={job.accountLabel}
+          subtitle={`${PLATFORM_LABELS[job.platform]} · ${STATUS_LABELS[job.status]}`}
+          actions={
+            <Badge variant={STATUS_BADGE_VARIANTS[job.status]}>
+              {STATUS_LABELS[job.status]}
+            </Badge>
+          }
+        />
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">

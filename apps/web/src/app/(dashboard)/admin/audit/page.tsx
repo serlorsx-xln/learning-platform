@@ -108,7 +108,10 @@ export default function AdminAuditPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader description="Complete history of admin and operator actions - who did what and when." />
+      <PageHeader
+        title="Audit log"
+        subtitle="Complete history of admin and operator actions - who did what and when."
+      />
 
       <Card>
         <CardHeader>

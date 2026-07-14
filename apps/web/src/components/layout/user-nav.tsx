@@ -2,12 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { LogOut, Moon, Sun } from "lucide-react";
-import { useTheme } from "next-themes";
+import { LogOut, User as UserIcon } from "lucide-react";
 import { signOut } from "@/lib/auth-client";
 import { getInitials } from "@/lib/user-display";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,14 +19,13 @@ import {
 interface UserNavProps {
   userName: string;
   userEmail?: string;
-  variant?: "topbar" | "sidebar";
   className?: string;
 }
 
-export function UserNav({ userName, userEmail, variant = "topbar", className }: UserNavProps) {
+export function UserNav({ userName, userEmail, className }: UserNavProps) {
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
   const [loading, setLoading] = useState(false);
+  const initials = getInitials(userName);
 
   async function handleSignOut() {
     setLoading(true);
@@ -54,53 +51,34 @@ export function UserNav({ userName, userEmail, variant = "topbar", className }: 
     }
   }
 
-  const isDark = theme === "dark";
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className={cn(
-            variant === "sidebar" ? "h-auto w-full justify-start gap-3 px-2 py-2" : "h-9 w-9 rounded-full p-0",
-            className
-          )}
+          className={cn("h-9 gap-2 px-2", className)}
+          aria-label="Account menu"
         >
-          <Avatar className={cn(variant === "sidebar" ? "h-8 w-8" : "h-8 w-8")}>
-            <AvatarFallback className="bg-primary/10 text-primary">{getInitials(userName)}</AvatarFallback>
-          </Avatar>
-          {variant === "sidebar" ? (
-            <div className="min-w-0 flex-1 text-left">
-              <p className="truncate text-small font-medium">{userName}</p>
-              {userEmail ? (
-                <p className="truncate text-caption text-muted-foreground">{userEmail}</p>
-              ) : null}
-            </div>
-          ) : (
-            <span className="sr-only">Open user menu</span>
-          )}
+          <span className="flex h-6 w-6 items-center justify-center rounded-full border border-border text-caption font-medium">
+            {initials || <UserIcon className="h-3.5 w-3.5" />}
+          </span>
+          <span className="hidden text-small sm:inline">{userName}</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align={variant === "sidebar" ? "start" : "end"} className="w-56">
+      <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-small font-medium">{userName}</p>
-            {userEmail ? <p className="text-caption text-muted-foreground">{userEmail}</p> : null}
+            <p className="text-small font-medium text-foreground">{userName}</p>
+            {userEmail ? (
+              <p className="text-caption text-muted-foreground">{userEmail}</p>
+            ) : null}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          onClick={() => setTheme(isDark ? "light" : "dark")}
-          className="cursor-pointer"
-        >
-          {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          {isDark ? "Light mode" : "Dark mode"}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
           onClick={() => void handleSignOut()}
           disabled={loading}
-          className="cursor-pointer text-destructive focus:text-destructive"
+          className="cursor-pointer"
         >
           <LogOut className="h-4 w-4" />
           {loading ? "Signing out..." : "Sign out"}
