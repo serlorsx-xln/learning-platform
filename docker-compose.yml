@@ -14,9 +14,9 @@ services:
       WORKER_SPEEXX_URL: http://worker-speexx:8003
     volumes:
       - platform-data:/app/data
-    # Coolify/Traefik: publish container port only (no host IP) so it does not clash on main.
+    # Coolify/Traefik: expose only (no host bind) so it does not clash on main.
     # Local overlay still binds 0.0.0.0:3000 via docker-compose.local.yml.
-    ports:
+    expose:
       - "3000"
     depends_on:
       worker-andrewbiggs:
