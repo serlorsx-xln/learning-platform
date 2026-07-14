@@ -1,0 +1,56 @@
+services:
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: file:/app/data/platform.db
+      INTERNAL_CALLBACK_URL: http://web:3000
+      WORKER_ANDREWBIGGS_URL: http://worker-andrewbiggs:8001
+      WORKER_EDLEARNING_URL: http://worker-edlearning:8002
+      WORKER_SPEEXX_URL: http://worker-speexx:8003
+    volumes:
+      - platform-data:/app/data
+    # Coolify routes via Traefik - do not publish host ports (avoids clash on main).
+    # Local publish: docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+    expose:
+      - "3000"
+    depends_on:
+      worker-andrewbiggs:
+        condition: service_healthy
+      worker-edlearning:
+        condition: service_healthy
+      worker-speexx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://$$(hostname):3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker-andrewbiggs:
+    build: ./services/worker-andrewbiggs
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker-edlearning:
+    build: ./services/worker-edlearning
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker-speexx:
+    build: ./services/worker-speexx
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  platform-data:

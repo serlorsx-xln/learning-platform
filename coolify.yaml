@@ -1,0 +1,14 @@
+apiVersion: coolify/v1
+kind: Project
+metadata:
+  name: learning
+  displayName: Learning Platform
+spec:
+  runtime: docker
+  server: main
+  services:
+    - name: web
+      type: web
+      port: 3000
+      build:
+        compose: docker-compose.yml
