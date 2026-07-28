@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PageHeader } from "@/components/layout/page-header";
@@ -143,7 +144,7 @@ export default function AndrewBiggsRunPage() {
   }
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <Link href="/run" className="text-small text-muted-foreground hover:text-foreground">
           ← Back to Run
@@ -171,9 +172,8 @@ export default function AndrewBiggsRunPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="extraUrls">Extra course URLs (optional, one per line)</Label>
-            <textarea
+            <Textarea
               id="extraUrls"
-              className="flex min-h-20 w-full rounded-md border border-input bg-transparent px-3 py-2 text-body shadow-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={extraUrls}
               onChange={(e) => setExtraUrls(e.target.value)}
               placeholder="https://ondemand.andrewbiggs.com/courses/..."

@@ -70,9 +70,8 @@ class speexx(Client):
             self._handle_login(true_username, password)
     
     def is_logged_in(self):
-        if ('AUTHENTICATION_TOKEN' in self.cookies or 'AUTH_CMRU' in self.cookies):
-            return True
-        return False
+        # Any non-empty cookie map counts as a session; keys are user-defined.
+        return bool(self.cookies)
     
     def get_article_id(self):
         return self.get('/', follow_redirects=True).url.path.split('/')[-1]

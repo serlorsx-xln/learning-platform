@@ -18,7 +18,13 @@ import {
 import { PageHeader } from "@/components/layout/page-header";
 import { CompletionBadge, CompletionSummary } from "@/components/run/completion-badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ListLoadingSkeleton } from "@/components/run/list-loading-skeleton";
+import {
+  CookieEntries,
+  cookieEntriesToRecord,
+  createCookieEntry,
+  type CookieEntry,
+} from "@/components/run/cookie-entries";
 
 interface ActivityItem {
   id: string | number;
@@ -39,8 +45,7 @@ export default function SpeexxRunPage() {
   const [authMode, setAuthMode] = useState<"password" | "cookie">("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [authCmru, setAuthCmru] = useState("");
-  const [authToken, setAuthToken] = useState("");
+  const [cookieEntries, setCookieEntries] = useState<CookieEntry[]>([createCookieEntry()]);
   const [doActivity, setDoActivity] = useState(true);
   const [test, setTest] = useState(false);
   const [targetPercent, setTargetPercent] = useState("100");
@@ -51,12 +56,37 @@ export default function SpeexxRunPage() {
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  function buildCredentials() {
+    if (authMode === "password") {
+      return { email, username: email, password };
+    }
+    return { cookies: cookieEntriesToRecord(cookieEntries) };
+  }
+
+  function validateAuth(): boolean {
+    if (authMode === "password") {
+      if (!email.trim() || !password) {
+        toast.error("Email and password are required");
+        return false;
+      }
+      return true;
+    }
+    const cookies = cookieEntriesToRecord(cookieEntries);
+    if (Object.keys(cookies).length === 0) {
+      toast.error("Add at least one cookie name and value");
+      return false;
+    }
+    return true;
+  }
+
   async function loadStatus() {
+    if (!validateAuth()) return;
+
     setLoadingStatus(true);
     const body =
       authMode === "password"
         ? { authMode, email, username: email, password }
-        : { authMode, cookies: { AUTH_CMRU: authCmru, AUTHENTICATION_TOKEN: authToken } };
+        : { authMode, cookies: cookieEntriesToRecord(cookieEntries) };
 
     const response = await fetch("/api/speexx/activities", {
       method: "POST",
@@ -81,24 +111,16 @@ export default function SpeexxRunPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    if (!validateAuth()) return;
 
-    const credentials =
-      authMode === "password"
-        ? { email, username: email, password }
-        : {
-            cookies: {
-              AUTH_CMRU: authCmru,
-              AUTHENTICATION_TOKEN: authToken,
-            },
-          };
+    setLoading(true);
 
     const response = await fetch("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         platform: "speexx",
-        credentials,
+        credentials: buildCredentials(),
         config: {
           authMode,
           doActivity,
@@ -125,7 +147,7 @@ export default function SpeexxRunPage() {
   const complete = activities.filter((a) => a.isComplete);
 
   return (
-    <div className="mx-auto max-w-xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <Link href="/run" className="text-small text-muted-foreground hover:text-foreground">
           ← Back to Run
@@ -139,104 +161,129 @@ export default function SpeexxRunPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Job configuration</CardTitle>
+          <CardTitle>Account</CardTitle>
           <CardDescription>
-            Recommended: load status, then run with activities at 100%. Toggle certificate test separately.
+            Email/password or cookie session. For cookies, name each key yourself.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Authentication mode</Label>
+            <Select value={authMode} onValueChange={(v) => setAuthMode(v as "password" | "cookie")}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="password">Email / password</SelectItem>
+                <SelectItem value="cookie">Cookie session</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {authMode === "password" ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </>
+          ) : (
+            <CookieEntries entries={cookieEntries} onChange={setCookieEntries} />
+          )}
+
+          <Button type="button" variant="secondary" onClick={loadStatus} disabled={loadingStatus}>
+            {loadingStatus ? "Loading..." : "Load activity status"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {loadingStatus ? <ListLoadingSkeleton rows={4} /> : null}
+
+      {!loadingStatus && summary ? (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Activity status</CardTitle>
+              {articleId ? (
+                <span className="text-caption text-muted-foreground">Article {articleId}</span>
+              ) : null}
+            </div>
+            <CardDescription>
+              Pending items will be skipped when already complete during the run.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <CompletionSummary
+              total={summary.total}
+              pending={summary.pending}
+              complete={summary.complete}
+            />
+            {pending.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-eyebrow">Pending</p>
+                {pending.map((item) => (
+                  <div key={String(item.id)} className="flex items-center justify-between gap-2 text-small">
+                    <span className="truncate">{item.title}</span>
+                    <CompletionBadge status="pending" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-small text-muted-foreground">All activities are complete.</p>
+            )}
+            {complete.length > 0 ? (
+              <div className="space-y-2 border-t border-border pt-3">
+                <p className="text-eyebrow">Complete ({complete.length})</p>
+                {complete.slice(0, 5).map((item) => (
+                  <div
+                    key={String(item.id)}
+                    className="flex items-center justify-between gap-2 text-small opacity-70"
+                  >
+                    <span className="truncate">{item.title}</span>
+                    <CompletionBadge status="complete" isComplete />
+                  </div>
+                ))}
+                {complete.length > 5 ? (
+                  <p className="text-caption text-muted-foreground">+{complete.length - 5} more</p>
+                ) : null}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Run</CardTitle>
+          <CardDescription>
+            Recommended: load status, then run with activities at 100%. Toggle certificate test
+            separately.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Authentication mode</Label>
-              <Select value={authMode} onValueChange={(v) => setAuthMode(v as "password" | "cookie")}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="password">Email / password</SelectItem>
-                  <SelectItem value="cookie">Cookie session</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {authMode === "password" ? (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="authCmru">AUTH_CMRU</Label>
-                  <Input id="authCmru" value={authCmru} onChange={(e) => setAuthCmru(e.target.value)} required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="authToken">AUTHENTICATION_TOKEN</Label>
-                  <Input id="authToken" value={authToken} onChange={(e) => setAuthToken(e.target.value)} required />
-                </div>
-              </>
-            )}
-
-            <Button type="button" variant="secondary" onClick={loadStatus} disabled={loadingStatus}>
-              {loadingStatus ? "Loading..." : "Load activity status"}
-            </Button>
-
-            {loadingStatus ? (
-              <div className="space-y-3 rounded-md border border-border p-4">
-                <Skeleton className="h-5 w-36" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-              </div>
-            ) : null}
-
-            {!loadingStatus && summary ? (
-              <div className="space-y-3 rounded-md border border-border p-4">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-small font-medium">Activity status</p>
-                  {articleId ? <span className="text-caption text-muted-foreground">Article {articleId}</span> : null}
-                </div>
-                <CompletionSummary total={summary.total} pending={summary.pending} complete={summary.complete} />
-                {pending.length > 0 ? (
-                  <div className="space-y-2">
-                    <p className="text-eyebrow">Pending</p>
-                    {pending.map((item) => (
-                      <div key={String(item.id)} className="flex items-center justify-between gap-2 text-small">
-                        <span className="truncate">{item.title}</span>
-                        <CompletionBadge status="pending" />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-small text-muted-foreground">All activities are complete.</p>
-                )}
-                {complete.length > 0 ? (
-                  <div className="space-y-2 border-t border-border pt-3">
-                    <p className="text-eyebrow">Complete ({complete.length})</p>
-                    {complete.slice(0, 5).map((item) => (
-                      <div key={String(item.id)} className="flex items-center justify-between gap-2 text-small opacity-70">
-                        <span className="truncate">{item.title}</span>
-                        <CompletionBadge status="complete" isComplete />
-                      </div>
-                    ))}
-                    {complete.length > 5 ? (
-                      <p className="text-caption text-muted-foreground">+{complete.length - 5} more</p>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="space-y-3 rounded-md border border-border p-4">
+            <div className="space-y-3">
               <label className="flex items-center gap-3">
                 <Checkbox checked={doActivity} onCheckedChange={(v) => setDoActivity(v === true)} />
-                <span className="text-small">Do activity (exercises) - skips completed automatically</span>
+                <span className="text-small">
+                  Do activity (exercises) - skips completed automatically
+                </span>
               </label>
               <label className="flex items-center gap-3">
                 <Checkbox checked={test} onCheckedChange={(v) => setTest(v === true)} />
@@ -247,11 +294,24 @@ export default function SpeexxRunPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="targetPercent">Target percent (1-100)</Label>
-                <Input id="targetPercent" type="number" min="1" max="100" value={targetPercent} onChange={(e) => setTargetPercent(e.target.value)} />
+                <Input
+                  id="targetPercent"
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={targetPercent}
+                  onChange={(e) => setTargetPercent(e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="delay">Delay per folder (seconds)</Label>
-                <Input id="delay" type="number" min="0" value={delayPerFolder} onChange={(e) => setDelayPerFolder(e.target.value)} />
+                <Input
+                  id="delay"
+                  type="number"
+                  min="0"
+                  value={delayPerFolder}
+                  onChange={(e) => setDelayPerFolder(e.target.value)}
+                />
               </div>
             </div>
 
