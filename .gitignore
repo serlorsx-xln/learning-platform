@@ -13,3 +13,7 @@ __pycache__/
 venv/
 *.log
 .DS_Store
+._*
+Thumbs.db
+*.tsbuildinfo
+.cursor/

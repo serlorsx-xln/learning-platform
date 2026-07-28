@@ -96,7 +96,7 @@ def run_job(payload: RunRequest):
         label = email
 
     article_id = client.get_article_id()
-    emit(cb, key, f"Authenticated — article {article_id}", payload={"account": label})
+    emit(cb, key, f"Authenticated - article {article_id}", payload={"account": label})
 
     if do_activity:
         emit(cb, key, f"Running activities ({target_percent}%)")

@@ -29,6 +29,7 @@ export interface EdLearningConfig {
   educationId: string;
   moduleIds: number[];
   minutesToAdd?: number;
+  mode?: "full" | "time_only";
 }
 
 export interface SpeexxConfig {

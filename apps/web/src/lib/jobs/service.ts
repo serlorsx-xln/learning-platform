@@ -2,7 +2,7 @@ import { eq, desc, and, gte, lte, SQL } from "drizzle-orm";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { jobs, jobEvents } from "@/lib/db/schema";
-import { encryptJson, decryptJson, maskAccountLabel } from "@/lib/crypto/credentials";
+import { encryptJson, maskAccountLabel } from "@/lib/crypto/credentials";
 import type {
   EventLevel,
   JobConfig,
@@ -60,7 +60,7 @@ export async function dispatchJob(
   const base =
     process.env.INTERNAL_CALLBACK_URL ??
     process.env.BETTER_AUTH_URL ??
-    "http://web:3000";
+    "http://app:3000";
   const callbackUrl = `${base.replace(/\/$/, "")}/api/internal/jobs/${jobId}/events`;
   const callbackKey = process.env.INTERNAL_API_KEY ?? "";
 
@@ -187,10 +187,6 @@ export async function getJobEvents(jobId: string) {
     .from(jobEvents)
     .where(eq(jobEvents.jobId, jobId))
     .orderBy(jobEvents.createdAt);
-}
-
-export function getJobCredentials(job: { credentialsEnc: string }): JobCredentials {
-  return decryptJson<JobCredentials>(job.credentialsEnc);
 }
 
 export async function getJobStats() {

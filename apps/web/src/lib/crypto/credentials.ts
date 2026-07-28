@@ -41,7 +41,3 @@ export function maskAccountLabel(label: string): string {
   if (label.length <= 4) return "****";
   return `${label.slice(0, 2)}***${label.slice(-2)}`;
 }
-
-export function generateEncryptionKey(): string {
-  return randomBytes(32).toString("hex");
-}

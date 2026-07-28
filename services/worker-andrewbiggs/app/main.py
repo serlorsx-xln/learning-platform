@@ -107,7 +107,7 @@ def run_job(payload: RunRequest):
                 all_lessons.extend(incomplete)
                 emit(cb, key, f"Found {len(incomplete)} incomplete lessons in course", payload={"course": course_url, "complete": inspection.get("completeLessons", 0), "total": inspection.get("totalLessons", 0)})
             else:
-                emit(cb, key, f"Course already complete — skipped", payload={"course": course_url})
+                emit(cb, key, f"Course already complete - skipped", payload={"course": course_url})
         except Exception as e:
             emit(cb, key, f"Failed to read course: {e}", level="warn")
 

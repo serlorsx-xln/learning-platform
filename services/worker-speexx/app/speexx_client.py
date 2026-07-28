@@ -1,6 +1,5 @@
 from httpx import Client
 from bs4 import BeautifulSoup
-from threading import Thread
 from json import loads, dumps
 from Crypto.Cipher import Blowfish
 from Crypto.Util.Padding import pad
@@ -104,9 +103,6 @@ class speexx(Client):
     def activity_folder_info(self, article_id, packet, folder_id):
         return self.get('/articles/%s/%s/folders/%s' % (article_id, packet, folder_id)).json()
 
-    def get_exercise(self, article_id, packet, folder_id, exercise_id):
-        return self.get('/articles/%s/%s/folders/%s/exercises/%s' % (article_id, packet, folder_id, exercise_id)).json()
-
     def submit_exercise(self, article_id, packet, folder_id, exercise_id, rsa):
         return self.put('/articles/%s/%s/folders/%s/exercises/%s' % (article_id, packet, folder_id, exercise_id), json={'rsa': rsa}).json()
 
@@ -119,9 +115,6 @@ class speexx(Client):
 
     def get_exam_exercises_folder(self, article_id):
         return self.get('/articles/%s/level-test' % (article_id)).text
-    
-    def get_exam_exercise(self, article_id, exercise_id):
-        return self.get('/articles/%s/level-test/exercises/%s' % (article_id, exercise_id)).json()
 
     def start_certificate(self, article_id):
         self.get_article_activities(article_id)
@@ -140,9 +133,6 @@ class speexx(Client):
                 certificate_result = self.submit_certificate(article_id, exercise.get('id'), result_encrypted)
 
                 print(certificate_result)
-    
-    def next_level(self, article_id):
-        return self.post('/articles/%s/next-level' % (article_id)).json()
 
     def list_activities_status(self, article_id):
         activities = self.get_article_activities(article_id)
@@ -243,27 +233,3 @@ class speexx(Client):
                             self.refresh_packets(article_id)
             else:
                 break
-
-
-def start_with_thread(profile):
-    username = profile['email']
-    password = profile['password']
-
-    print('Login with %s' % (username))
-
-    objects = speexx()
-    objects.login(username, password)
-
-    if (objects.is_logged_in()):
-        article_id = objects.get_article_id()
-
-        if (profile['do_activity'] is True):
-            objects.start(article_id, profile['target_percent'], profile['delay_per_folder'])
-        
-        if (profile['test'] is True):
-            objects.start_certificate(article_id)
-
-        print('Completed all activities and certificate for article ID: %s, %s' % (article_id, username))
-
-    else:
-        print('Login failed, please check your credentials. %s' % (username))

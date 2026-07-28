@@ -1,7 +1,6 @@
 import logging
 from httpx import Client
 from bs4 import BeautifulSoup
-from threading import Thread
 from re import sub
 from json import dumps, loads
 from time import time, sleep

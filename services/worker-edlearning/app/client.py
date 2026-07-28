@@ -354,7 +354,7 @@ class EdClient:
         if mode == "time_only":
             selected = modules
             if minutes_to_add <= 0:
-                emit("No minutes requested — skipped")
+                emit("No minutes requested - skipped")
                 return {
                     "mode": "time_only",
                     "tasksSubmitted": 0,
@@ -363,7 +363,7 @@ class EdClient:
                     "averageTestScore": 0,
                     "minutesAdded": 0,
                 }
-            emit(f"Time-only mode — pinging lessons across {len(selected)} modules")
+            emit(f"Time-only mode - pinging lessons across {len(selected)} modules")
             minutes_added = self._run_time_phase(selected, {}, minutes_to_add, emit)
             return {
                 "mode": "time_only",
@@ -451,7 +451,7 @@ class EdClient:
             if result:
                 tests_submitted += 1
                 total_score += result.get("finalMark", 0)
-                emit(f"Test submitted: {lesson.get('Name')} — {result.get('finalMark')}%")
+                emit(f"Test submitted: {lesson.get('Name')} - {result.get('finalMark')}%")
 
         minutes_added = 0
         if minutes_to_add > 0:
