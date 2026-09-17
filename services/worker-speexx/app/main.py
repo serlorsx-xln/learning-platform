@@ -28,6 +28,10 @@ class ActivitiesRequest(BaseModel):
     cookies: Optional[dict] = None
 
 
+class NextLevelRequest(ActivitiesRequest):
+    targetLevelId: int
+
+
 def verify_key(key: str | None):
     expected = os.environ.get("INTERNAL_API_KEY", "")
     if not expected or key != expected:
@@ -64,6 +68,22 @@ def internal_activities(payload: ActivitiesRequest, x_internal_key: Optional[str
     return client.list_activities_status(article_id)
 
 
+@app.post("/internal/level-info")
+def internal_level_info(payload: ActivitiesRequest, x_internal_key: Optional[str] = Header(default=None)):
+    verify_key(x_internal_key)
+    client = _client_from_payload(payload)
+    article_id = client.get_article_id()
+    return client.get_level_info(article_id)
+
+
+@app.post("/internal/go-to-next-level")
+def internal_go_to_next_level(payload: NextLevelRequest, x_internal_key: Optional[str] = Header(default=None)):
+    verify_key(x_internal_key)
+    client = _client_from_payload(payload)
+    article_id = client.get_article_id()
+    return client.go_to_next_level(article_id, payload.targetLevelId)
+
+
 def run_job(payload: RunRequest):
     global _running
     creds = payload.credentials
@@ -76,6 +96,10 @@ def run_job(payload: RunRequest):
     test = config.get("test", False)
     target_percent = int(config.get("targetPercent", 100))
     delay_per_folder = int(config.get("delayPerFolder", 0))
+    # User-supplied total hours to add (distributed across pending sub-exercises with noise).
+    # None = use random randint(30,40) per sub-exercise (default behavior).
+    target_elapsed_hours = config.get("targetElapsedHours")
+    target_elapsed_seconds = int(float(target_elapsed_hours) * 3600) if target_elapsed_hours else None
 
     emit(cb, key, "Starting Speexx automation", status="running")
 
@@ -99,8 +123,11 @@ def run_job(payload: RunRequest):
     emit(cb, key, f"Authenticated - article {article_id}", payload={"account": label})
 
     if do_activity:
-        emit(cb, key, f"Running activities ({target_percent}%)")
-        client.start(article_id, target_percent, delay_per_folder)
+        if target_elapsed_seconds:
+            emit(cb, key, f"Running activities ({target_percent}%) — adding {target_elapsed_seconds}s total elapsed")
+        else:
+            emit(cb, key, f"Running activities ({target_percent}%)")
+        client.start(article_id, target_percent, delay_per_folder, target_elapsed_seconds)
         emit(cb, key, "Activities complete")
 
     if test:
@@ -118,6 +145,7 @@ def run_job(payload: RunRequest):
             "doActivity": do_activity,
             "test": test,
             "targetPercent": target_percent,
+            "targetElapsedSeconds": target_elapsed_seconds,
         },
     )
 

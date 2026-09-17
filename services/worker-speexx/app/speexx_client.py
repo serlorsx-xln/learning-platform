@@ -125,7 +125,7 @@ class speexx(Client):
         if (exam_exercises is not True):
             for exercise in loads(exam_exercises).get('exercises'):
                 exercise_result = {
-                    'elapsed': randint(20, 25), 
+                    'elapsed': randint(20, 25),
                     'result': 100
                 }
 
@@ -146,6 +146,8 @@ class speexx(Client):
                 "title": exercise.get("title") or exercise.get("link") or str(exercise.get("id")),
                 "link": exercise.get("link"),
                 "result": result,
+                "elapsedTime": exercise.get("elapsedTime", 0),
+                "elapsedTimeFormatted": exercise.get("elapsedTimeFormatted", ""),
                 "isComplete": is_complete,
                 "status": "complete" if is_complete else "pending",
             })
@@ -163,11 +165,55 @@ class speexx(Client):
             },
         }
 
-    def start(self, article_id, target_percent=100, delay_per_folder=0):
+    def _count_pending_sub_exercises(self, article_id, exercises):
+        """Pre-scan all pending exercises to count total sub-exercises across folders."""
+        total = 0
+        folders = []
+        for exercise in exercises:
+            if exercise.get('result') == '100':
+                continue
+            packet = exercise.get('link')
+            try:
+                folder_html = self.get_activity_folder(article_id, packet)
+                packets_raw = self._parse_jv_data(folder_html, 'packets')
+                if packets_raw is True or packets_raw is None:
+                    continue
+                packets = loads(packets_raw)
+                first_packet = packets[0]
+                if first_packet.get('result') == '100':
+                    continue
+                folder_info = self.activity_folder_info(article_id, packet, first_packet.get('id'))
+                sub_exercises = folder_info.get('exercises', [])
+                total += len(sub_exercises)
+                folders.append({
+                    'exercise': exercise,
+                    'packet': packet,
+                    'folder_id': first_packet.get('id'),
+                    'sub_exercises': sub_exercises,
+                })
+            except Exception:
+                continue
+        return total, folders
+
+    def start(self, article_id, target_percent=100, delay_per_folder=0, target_elapsed_seconds=None):
         target_percent = max(1, min(100, int(target_percent)))
-        
+
         target_count = max(1, int(96 * target_percent / 100))
         exercise_completed = []
+
+        # If target_elapsed_seconds is set, pre-scan to compute per-sub elapsed.
+        # User supplies the total hours to add; we distribute across pending
+        # sub-exercises with ±30% noise so it still looks human.
+        base_elapsed = None
+        if target_elapsed_seconds is not None and target_elapsed_seconds > 0:
+            self.get_article(article_id)
+            activities = self.get_article_activities(article_id)
+            exercises = activities.get('exercises', [])
+            total_sub, _ = self._count_pending_sub_exercises(article_id, exercises)
+            if total_sub > 0:
+                base_elapsed = target_elapsed_seconds / total_sub
+                print('target_elapsed_seconds=%s across %d sub-exercises (base=%.1fs each)' % (
+                    target_elapsed_seconds, total_sub, base_elapsed))
 
         while (True):
             if (target_percent != 100 and len(exercise_completed) >= target_count):
@@ -205,14 +251,21 @@ class speexx(Client):
                         exercises = folder_info.get('exercises')
 
                         print('%s (%s) - (%s / %s)' % (
-                            folder_info.get('id'), 
-                            folder_info.get('title'), 
-                            len(exercise_completed), 
+                            folder_info.get('id'),
+                            folder_info.get('title'),
+                            len(exercise_completed),
                             target_count
                         ))
                         for folder_exercise in folder_info.get('exercises'):
+                            if base_elapsed is not None:
+                                # distribute target with ±30% noise, floor 30s
+                                noise = randint(-30, 30) / 100.0
+                                elapsed = max(30, int(base_elapsed * (1 + noise)))
+                            else:
+                                elapsed = randint(30, 40)
+
                             exercise_result = {
-                                'elapsed':randint(30, 40), 
+                                'elapsed': elapsed,
                                 'result':100
                             }
 
@@ -233,3 +286,52 @@ class speexx(Client):
                             self.refresh_packets(article_id)
             else:
                 break
+
+    def get_level_info(self, article_id):
+        results = self.get_article_results(article_id)
+
+        current_raw = self._parse_jv_data(results, 'currentLevelBean')
+        current = loads(current_raw) if current_raw and current_raw is not True else {}
+
+        next_raw = self._parse_jv_data(results, 'nextLevels')
+        next_levels = []
+        if next_raw and next_raw is not True:
+            for nl in loads(next_raw):
+                lr = nl.get('levelRange', {})
+                next_levels.append({
+                    'id': lr.get('id'),
+                    'name': lr.get('name'),
+                    'achieved': nl.get('achieved'),
+                    'current': nl.get('current'),
+                })
+
+        activities = self.get_article_activities(article_id)
+        total_elapsed = sum(int(ex.get('elapsedTime', 0) or 0) for ex in activities.get('exercises', []))
+
+        return {
+            'currentLevel': current,
+            'nextLevels': next_levels,
+            'totalElapsedSeconds': total_elapsed,
+        }
+
+    def go_to_next_level(self, article_id, target_level_id):
+        r = self.get('/articles/%s/level-test?levelRangeId=%s' % (article_id, target_level_id))
+
+        test_data = self._parse_jv_data(r.text, 'test')
+        if test_data is True or test_data is None:
+            return {'success': False, 'message': 'No test data for this level'}
+
+        test = loads(test_data)
+        exercises = test.get('exercises', [])
+
+        for exercise in exercises:
+            exercise_result = {
+                'elapsed': randint(20, 25),
+                'result': 100
+            }
+
+            result_encrypted = self.blowfish_encrypt(str(exercise.get('student')).encode(), dumps(exercise_result))
+            self.submit_certificate(article_id, exercise.get('id'), result_encrypted)
+
+        return {'success': True, 'submittedTests': len(exercises), 'targetLevelId': target_level_id}
+

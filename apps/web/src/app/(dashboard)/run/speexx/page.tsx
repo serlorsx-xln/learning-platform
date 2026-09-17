@@ -30,6 +30,8 @@ interface ActivityItem {
   id: string | number;
   title: string;
   result?: string;
+  elapsedTime?: string | number;
+  elapsedTimeFormatted?: string;
   isComplete: boolean;
   status: "complete" | "pending";
 }
@@ -38,6 +40,12 @@ interface ActivitySummary {
   total: number;
   pending: number;
   complete: number;
+}
+
+interface LevelInfo {
+  currentLevel: { id: number; name: string };
+  nextLevels: { id: number; name: string; achieved: boolean; current: boolean }[];
+  totalElapsedSeconds: number;
 }
 
 export default function SpeexxRunPage() {
@@ -50,11 +58,14 @@ export default function SpeexxRunPage() {
   const [test, setTest] = useState(false);
   const [targetPercent, setTargetPercent] = useState("100");
   const [delayPerFolder, setDelayPerFolder] = useState("0");
+  const [targetElapsedHours, setTargetElapsedHours] = useState("");
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [summary, setSummary] = useState<ActivitySummary | null>(null);
   const [articleId, setArticleId] = useState<string | null>(null);
+  const [levelInfo, setLevelInfo] = useState<LevelInfo | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [goingNext, setGoingNext] = useState(false);
 
   function buildCredentials() {
     if (authMode === "password") {
@@ -107,6 +118,58 @@ export default function SpeexxRunPage() {
     toast.success(
       `Loaded ${data.summary?.total ?? 0} activities - ${data.summary?.pending ?? 0} pending`
     );
+
+    // Load level info (elapsed time + current/next levels)
+    const levelBody =
+      authMode === "password"
+        ? { authMode, email, username: email, password }
+        : { authMode, cookies: cookieEntriesToRecord(cookieEntries) };
+    const levelRes = await fetch("/api/speexx/level-info", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(levelBody),
+    });
+    if (levelRes.ok) {
+      setLevelInfo(await levelRes.json());
+    }
+  }
+
+  async function goToNextLevel() {
+    if (!levelInfo?.nextLevels?.length) return;
+    const next = levelInfo.nextLevels.find((l) => !l.achieved && !l.current) ?? levelInfo.nextLevels[0];
+    if (!next) return;
+
+    setGoingNext(true);
+    const body =
+      authMode === "password"
+        ? { authMode, email, username: email, password, targetLevelId: next.id }
+        : { authMode, cookies: cookieEntriesToRecord(cookieEntries), targetLevelId: next.id };
+
+    const res = await fetch("/api/speexx/go-to-next-level", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    setGoingNext(false);
+
+    if (!res.ok) {
+      toast.error("Failed to go to next level");
+      return;
+    }
+    const data = await res.json();
+    if (data.success) {
+      toast.success(`Submitted ${data.submittedTests} tests for level ${next.name}`);
+      // Reload level info + activities
+      loadStatus();
+    } else {
+      toast.error(data.message ?? "Failed to go to next level");
+    }
+  }
+
+  function formatElapsed(seconds: number): string {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -127,6 +190,7 @@ export default function SpeexxRunPage() {
           test,
           targetPercent: Number(targetPercent) || 100,
           delayPerFolder: Number(delayPerFolder) || 0,
+          targetElapsedHours: targetElapsedHours ? Number(targetElapsedHours) : null,
         },
       }),
     });
@@ -234,6 +298,48 @@ export default function SpeexxRunPage() {
               pending={summary.pending}
               complete={summary.complete}
             />
+
+            {levelInfo ? (
+              <div className="rounded-md border bg-muted/30 p-3 space-y-2 text-small">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Current level</span>
+                  <strong className="text-foreground">{levelInfo.currentLevel?.name ?? "—"}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Total study time</span>
+                  <strong className="text-foreground">
+                    {formatElapsed(levelInfo.totalElapsedSeconds)}
+                  </strong>
+                </div>
+                {levelInfo.nextLevels?.length ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Next levels</span>
+                    <span className="text-foreground">
+                      {levelInfo.nextLevels
+                        .filter((l) => !l.achieved && !l.current)
+                        .map((l) => l.name)
+                        .join(", ") || "—"}
+                    </span>
+                  </div>
+                ) : null}
+                {pending.length === 0 && levelInfo.nextLevels?.some((l) => !l.achieved && !l.current) ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    disabled={goingNext}
+                    onClick={goToNextLevel}
+                  >
+                    {goingNext
+                      ? "Going to next level..."
+                      : `Go to next level (${
+                          levelInfo.nextLevels.find((l) => !l.achieved && !l.current)?.name ?? ""
+                        })`}
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             {pending.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-eyebrow">Pending</p>
@@ -311,6 +417,18 @@ export default function SpeexxRunPage() {
                   min="0"
                   value={delayPerFolder}
                   onChange={(e) => setDelayPerFolder(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="targetElapsedHours">Total hours to add (empty = random 30-40s/exercise)</Label>
+                <Input
+                  id="targetElapsedHours"
+                  type="number"
+                  min="0.1"
+                  step="0.5"
+                  placeholder="e.g. 5 (adds 5h distributed across pending exercises)"
+                  value={targetElapsedHours}
+                  onChange={(e) => setTargetElapsedHours(e.target.value)}
                 />
               </div>
             </div>
