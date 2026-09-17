@@ -308,10 +308,33 @@ class speexx(Client):
         activities = self.get_article_activities(article_id)
         total_elapsed = sum(int(ex.get('elapsedTime', 0) or 0) for ex in activities.get('exercises', []))
 
+        # Check if current level is achieved (certificate/level test passed)
+        working_raw = self._parse_jv_data(results, 'workingLevelRangeBean')
+        level_achieved = False
+        if working_raw and working_raw is not True:
+            level_achieved = loads(working_raw).get('achieved', False)
+
+        # Check level-test exercise completion
+        level_test_finished = 0
+        level_test_total = 0
+        try:
+            r = self.get('/articles/%s/level-test' % (article_id))
+            test_data = self._parse_jv_data(r.text, 'test')
+            if test_data and test_data is not True:
+                test = loads(test_data)
+                test_exercises = test.get('exercises', [])
+                level_test_total = len(test_exercises)
+                level_test_finished = sum(1 for e in test_exercises if e.get('finished'))
+        except Exception:
+            pass
+
         return {
             'currentLevel': current,
             'nextLevels': next_levels,
             'totalElapsedSeconds': total_elapsed,
+            'levelAchieved': level_achieved,
+            'levelTestTotal': level_test_total,
+            'levelTestFinished': level_test_finished,
         }
 
     def go_to_next_level(self, article_id, target_level_id):

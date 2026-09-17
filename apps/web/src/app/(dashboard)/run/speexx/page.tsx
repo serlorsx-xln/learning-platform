@@ -46,6 +46,9 @@ interface LevelInfo {
   currentLevel: { id: number; name: string };
   nextLevels: { id: number; name: string; achieved: boolean; current: boolean }[];
   totalElapsedSeconds: number;
+  levelAchieved: boolean;
+  levelTestTotal: number;
+  levelTestFinished: number;
 }
 
 export default function SpeexxRunPage() {
@@ -311,6 +314,14 @@ export default function SpeexxRunPage() {
                     {formatElapsed(levelInfo.totalElapsedSeconds)}
                   </strong>
                 </div>
+                {levelInfo.levelTestTotal > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Level test</span>
+                    <strong className={levelInfo.levelAchieved ? "text-foreground" : "text-amber-600"}>
+                      {levelInfo.levelTestFinished}/{levelInfo.levelTestTotal} {levelInfo.levelAchieved ? "✓ passed" : "not passed"}
+                    </strong>
+                  </div>
+                ) : null}
                 {levelInfo.nextLevels?.length ? (
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Next levels</span>
@@ -322,7 +333,12 @@ export default function SpeexxRunPage() {
                     </span>
                   </div>
                 ) : null}
-                {pending.length === 0 && levelInfo.nextLevels?.some((l) => !l.achieved && !l.current) ? (
+                {pending.length === 0 && !levelInfo.levelAchieved ? (
+                  <p className="text-small text-amber-600 pt-1">
+                    Exercises complete — run certificate/level test to pass this level first.
+                  </p>
+                ) : null}
+                {pending.length === 0 && levelInfo.levelAchieved && levelInfo.nextLevels?.some((l) => !l.achieved && !l.current) ? (
                   <Button
                     type="button"
                     variant="secondary"
