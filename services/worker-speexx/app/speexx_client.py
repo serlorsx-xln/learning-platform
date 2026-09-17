@@ -116,6 +116,15 @@ class speexx(Client):
     def get_exam_exercises_folder(self, article_id):
         return self.get('/articles/%s/level-test' % (article_id)).text
 
+    def get_exercise(self, article_id, packet, folder_id, exercise_id):
+        return self.get('/articles/%s/%s/folders/%s/exercises/%s' % (article_id, packet, folder_id, exercise_id)).json()
+
+    def get_exam_exercise(self, article_id, exercise_id):
+        return self.get('/articles/%s/level-test/exercises/%s' % (article_id, exercise_id)).json()
+
+    def next_level(self, article_id):
+        return self.post('/articles/%s/next-level' % (article_id)).json()
+
     def start_certificate(self, article_id):
         self.get_article_activities(article_id)
 
@@ -356,5 +365,17 @@ class speexx(Client):
             result_encrypted = self.blowfish_encrypt(str(exercise.get('student')).encode(), dumps(exercise_result))
             self.submit_certificate(article_id, exercise.get('id'), result_encrypted)
 
-        return {'success': True, 'submittedTests': len(exercises), 'targetLevelId': target_level_id}
+        # Advance to the next level via the official next-level endpoint
+        next_result = None
+        try:
+            next_result = self.next_level(article_id)
+        except Exception as e:
+            print('next_level() failed: %s' % (e))
+
+        return {
+            'success': True,
+            'submittedTests': len(exercises),
+            'targetLevelId': target_level_id,
+            'nextLevelResult': next_result,
+        }
 
