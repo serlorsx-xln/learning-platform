@@ -213,7 +213,13 @@ class speexx(Client):
         # If target_elapsed_seconds is set, pre-scan to compute per-sub elapsed.
         # User supplies the total hours to add; we distribute across pending
         # sub-exercises with ±30% noise so it still looks human.
+        # time_budget is a HARD CAP: every submitted second decrements it, and
+        # once exhausted, remaining exercises fall back to default random
+        # elapsed. This guarantees the total added time never exceeds the
+        # user's target even when new exercises unlock mid-run (which would
+        # otherwise each carry the full base_elapsed and balloon the total).
         base_elapsed = None
+        time_budget = None
         if target_elapsed_seconds is not None and target_elapsed_seconds > 0:
             self.get_article(article_id)
             activities = self.get_article_activities(article_id)
@@ -221,6 +227,7 @@ class speexx(Client):
             total_sub, _ = self._count_pending_sub_exercises(article_id, exercises)
             if total_sub > 0:
                 base_elapsed = target_elapsed_seconds / total_sub
+                time_budget = target_elapsed_seconds
                 print('target_elapsed_seconds=%s across %d sub-exercises (base=%.1fs each)' % (
                     target_elapsed_seconds, total_sub, base_elapsed))
 
@@ -266,10 +273,13 @@ class speexx(Client):
                             target_count
                         ))
                         for folder_exercise in folder_info.get('exercises'):
-                            if base_elapsed is not None:
-                                # distribute target with ±30% noise, floor 30s
+                            if time_budget is not None and time_budget > 0:
+                                # distribute target with ±30% noise, floor 30s,
+                                # capped by remaining budget
                                 noise = randint(-30, 30) / 100.0
                                 elapsed = max(30, int(base_elapsed * (1 + noise)))
+                                elapsed = min(elapsed, time_budget)
+                                time_budget -= elapsed
                             else:
                                 elapsed = randint(30, 40)
 
