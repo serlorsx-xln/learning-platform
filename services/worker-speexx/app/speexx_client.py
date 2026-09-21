@@ -280,6 +280,11 @@ class speexx(Client):
                                 elapsed = max(30, int(base_elapsed * (1 + noise)))
                                 elapsed = min(elapsed, time_budget)
                                 time_budget -= elapsed
+                            elif time_budget is not None:
+                                # budget exhausted — minimal elapsed so the
+                                # total stays close to the user's target while
+                                # still completing every exercise
+                                elapsed = randint(1, 5)
                             else:
                                 elapsed = randint(30, 40)
 
