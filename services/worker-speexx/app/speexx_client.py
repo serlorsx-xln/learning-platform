@@ -207,8 +207,21 @@ class speexx(Client):
     def start(self, article_id, target_percent=100, delay_per_folder=0, target_elapsed_seconds=None):
         target_percent = max(1, min(100, int(target_percent)))
 
-        target_count = max(1, int(96 * target_percent / 100))
         exercise_completed = []
+
+        # Determine target_count from the course's real exercise total, and
+        # seed exercise_completed with exercises already done before this run
+        # (so "50%" means 50% of the whole course, not 50% more on top of
+        # whatever was already complete).
+        self.get_article(article_id)
+        pre_activities = self.get_article_activities(article_id)
+        pre_exercises = pre_activities.get('exercises', [])
+        total_exercises = len(pre_exercises)
+        already_done = [ex.get('id') for ex in pre_exercises if ex.get('result') == '100']
+        exercise_completed.extend(already_done)
+        target_count = max(1, int(total_exercises * target_percent / 100))
+        print('course has %d exercises, %d already complete — target %d%% = %d total' % (
+            total_exercises, len(already_done), target_percent, target_count))
 
         # If target_elapsed_seconds is set, pre-scan to compute per-sub elapsed.
         # User supplies the total hours to add; we distribute across pending
