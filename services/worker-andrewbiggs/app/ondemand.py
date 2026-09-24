@@ -98,8 +98,13 @@ class Ondemand(Client):
         request = self.get(url)
         soup = BeautifulSoup(request.text, "html.parser")
         title_tag = soup.find("h1")
-        lessons = []
-        items = soup.find_all("div", class_=lambda c: c and "ld-item-list-item" in c)
+        # The LearnDash list nests wrappers whose classes both contain
+        # "ld-item-list-item" (e.g. ld-item-list-item-preview), so a substring
+        # match yields 2-3 rows per real lesson. Match the exact class and
+        # dedupe by URL — a lesson counts as complete if ANY of its rows does.
+        items = soup.find_all("div", class_="ld-item-list-item")
+        lessons = {}
+        order = []
         for item in items:
             link = item.find("a", class_="ld-item-name")
             if not link or not link.get("href"):
@@ -108,17 +113,22 @@ class Ondemand(Client):
             full_url = href if href.startswith("http") else f"{self.base_url.rstrip('/')}{href}" if href.startswith("/") else href
             classes = " ".join(item.get("class", []))
             is_complete = "learndash-complete" in classes or "ld-status-complete" in classes
-            lessons.append({
-                "url": full_url,
-                "title": link.get_text(strip=True) or full_url,
-                "isComplete": is_complete,
-            })
-        complete = sum(1 for lesson in lessons if lesson["isComplete"])
-        total = len(lessons)
+            if full_url not in lessons:
+                lessons[full_url] = {
+                    "url": full_url,
+                    "title": link.get_text(strip=True) or full_url,
+                    "isComplete": is_complete,
+                }
+                order.append(full_url)
+            elif is_complete:
+                lessons[full_url]["isComplete"] = True
+        lesson_list = [lessons[u] for u in order]
+        complete = sum(1 for lesson in lesson_list if lesson["isComplete"])
+        total = len(lesson_list)
         return {
             "url": url,
             "title": title_tag.get_text(strip=True) if title_tag else url,
-            "lessons": lessons,
+            "lessons": lesson_list,
             "totalLessons": total,
             "completeLessons": complete,
             "incompleteLessons": total - complete,
@@ -164,7 +174,17 @@ class Ondemand(Client):
                 meta_str = item.get("data-question-meta")
                 if meta_str:
                     meta = loads(meta_str)
-                    options = item.find_all("li", {"class": "wpProQuiz_questionListItem"})
+                    # LearnDash changed the option wrapper from <li> to <div
+                    # class="wpProQuiz_questionListItem">, so match BOTH tag
+                    # names to survive either markup.
+                    options = item.find_all(
+                        lambda tag: tag.name in ("li", "div")
+                        and tag.get("class")
+                        and "wpProQuiz_questionListItem" in tag.get("class", [])
+                    )
+                    if not options:
+                        # fallback: count radio/checkbox inputs directly
+                        options = item.find_all("input", class_="wpProQuiz_questionInput")
                     meta['option_count'] = len(options)
                     questions.append(meta)
 
@@ -174,9 +194,9 @@ class Ondemand(Client):
             logger.error("[ERROR] Exception in get_quiz_data for URL %s: %s", url, str(e))
             return None, None, None, None, None, None, None, None
 
-    def solve_quiz(self, url: str):
+    def solve_quiz(self, url: str, target_seconds=None):
         try:
-            result = self._solve_quiz_internal(url)
+            result = self._solve_quiz_internal(url, target_seconds)
             if result["status"] == "success":
                 logger.info("[SUCCESS] Quiz solved and progress updated: %s", url)
             else:
@@ -186,10 +206,23 @@ class Ondemand(Client):
             logger.error("[FATAL] Unhandled Exception solving %s: %s", url, str(e))
             return {"status": "error", "error": "System Error: %s" % str(e), "url": url}
 
-    def _solve_quiz_internal(self, url: str):
+    def _solve_quiz_internal(self, url: str, target_seconds=None):
         quiz_id, quiz_nonce, course_id, quiz_post_id, questions, lesson_id, topic_id, quiz_url = self.get_quiz_data(url)
         if not quiz_id or not questions:
             return {"status": "skipped", "error": "No quiz found on page", "url": url}
+
+        # Per-question time: distribute the quiz's target seconds across all
+        # questions with gaussian noise so the pacing looks human. Without a
+        # target, fall back to the historical default (~5 min/question).
+        if target_seconds and target_seconds > 0 and len(questions) > 0:
+            base_per_q = target_seconds / len(questions)
+            question_times = []
+            for _ in questions:
+                jitter = gauss(0, base_per_q * 0.25)
+                question_times.append(max(20, min(7200, floor(base_per_q + jitter))))
+        else:
+            question_times = [max(120, min(1200, floor(gauss(300, 120)))) for _ in questions]
+        total_quiz_time = sum(question_times) + floor(uniform(180, 600))
 
         self.post("/wp-admin/admin-ajax.php", data={
             "action": "wp_pro_quiz_load_quiz_data",
@@ -222,6 +255,7 @@ class Ondemand(Client):
         if dummy_request.status_code != 200:
             return {"status": "error", "error": "Phase 1 Failed. HTTP %s" % dummy_request.status_code, "url": url}
 
+        # Fresh nonces for the correct submission
         quiz_id, quiz_nonce, course_id, quiz_post_id, questions, lesson_id, topic_id, quiz_url = self.get_quiz_data(url)
 
         self.post("/wp-admin/admin-ajax.php", data={
@@ -232,9 +266,6 @@ class Ondemand(Client):
             "course_id": course_id
         })
 
-        question_times = [max(120, min(1200, floor(gauss(300, 120)))) for _ in questions]
-        total_quiz_time = sum(question_times) + floor(uniform(180, 600))
-
         try:
             answers_data = loads(dummy_request.text)
         except Exception as e:
@@ -242,10 +273,10 @@ class Ondemand(Client):
 
         if not isinstance(answers_data, dict):
             return {"status": "error", "error": "Invalid response structure", "url": url}
-        
+
         correct_responses = {}
         final_results = {}
-        
+
         for idx, (q_pro_id, details) in enumerate(answers_data.items()):
             correct_mask = details['e']['c']
             resp_obj = {str(i): bool(val) for i, val in enumerate(correct_mask)}
@@ -280,6 +311,10 @@ class Ondemand(Client):
             if isinstance(phase3_data, dict):
                 for q_pro_id, details in phase3_data.items():
                     if q_pro_id in final_results:
+                        # Mirror the front-end JS: points/correct come from the
+                        # server's verdict on the correct submission.
+                        final_results[q_pro_id]['points'] = details.get('p', 1)
+                        final_results[q_pro_id]['correct'] = int(bool(details.get('c')))
                         final_results[q_pro_id]['a_nonce'] = details.get('a_nonce', final_results[q_pro_id]['a_nonce'])
                         final_results[q_pro_id]['p_nonce'] = details.get('p_nonce', final_results[q_pro_id]['p_nonce'])
         except Exception:
@@ -289,7 +324,7 @@ class Ondemand(Client):
         quiz_start_ts = quiz_end_ts - (total_quiz_time * 1000)
 
         final_results["comp"] = {
-            "points": len(question_times),
+            "points": sum(f.get('points', 0) for k, f in final_results.items() if k != 'comp'),
             "correctQuestions": len(question_times),
             "quizTime": total_quiz_time,
             "quizEndTimestamp": quiz_end_ts,
@@ -307,6 +342,7 @@ class Ondemand(Client):
             "quizId": quiz_id,
             "results": dumps(final_results),
             "timespent": total_quiz_time,
+            "forms": "{}",
             "quiz_nonce": quiz_nonce
         })
 

@@ -36,6 +36,7 @@ export default function AndrewBiggsRunPage() {
   const [password, setPassword] = useState("");
   const [extraUrls, setExtraUrls] = useState("");
   const [delay, setDelay] = useState("0.5");
+  const [targetElapsedHours, setTargetElapsedHours] = useState("");
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [summary, setSummary] = useState<CourseSummary | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -98,7 +99,11 @@ export default function AndrewBiggsRunPage() {
       body: JSON.stringify({
         platform: "andrewbiggs",
         credentials: { email, username: email, password },
-        config: { courses: selected, delay: Number(delay) || 0.5 },
+        config: {
+          courses: selected,
+          delay: Number(delay) || 0.5,
+          targetElapsedHours: targetElapsedHours ? Number(targetElapsedHours) : null,
+        },
       }),
     });
     setLoading(false);
@@ -238,6 +243,18 @@ export default function AndrewBiggsRunPage() {
               <div className="space-y-2">
                 <Label htmlFor="delay">Delay between lessons (seconds)</Label>
                 <Input id="delay" type="number" step="0.1" min="0" value={delay} onChange={(e) => setDelay(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="targetElapsedHours">Total hours to add (empty = default ~5 min/question)</Label>
+                <Input
+                  id="targetElapsedHours"
+                  type="number"
+                  min="0.1"
+                  step="0.5"
+                  placeholder="e.g. 5 (adds 5h spread across all lessons)"
+                  value={targetElapsedHours}
+                  onChange={(e) => setTargetElapsedHours(e.target.value)}
+                />
               </div>
               <Button type="submit" disabled={loading || selected.length === 0} className="w-full">
                 {loading ? "Starting..." : `Run job (${selected.length} course${selected.length === 1 ? "" : "s"})`}

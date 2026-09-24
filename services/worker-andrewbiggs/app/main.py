@@ -87,6 +87,10 @@ def run_job(payload: RunRequest):
     password = payload.credentials.get("password")
     courses = payload.config.get("courses", [])
     delay = float(payload.config.get("delay", 0.5))
+    # User-supplied total study hours, distributed across every lesson solved
+    # in this run (per-question time jittered around the lesson's share).
+    target_elapsed_hours = payload.config.get("targetElapsedHours")
+    target_elapsed_seconds = float(target_elapsed_hours) * 3600 if target_elapsed_hours else None
 
     emit(cb, key, "Starting Andrew Biggs automation", status="running")
 
@@ -116,14 +120,17 @@ def run_job(payload: RunRequest):
         return
 
     emit(cb, key, f"Solving {len(all_lessons)} lessons")
+    if target_elapsed_seconds:
+        emit(cb, key, f"Adding {target_elapsed_seconds/3600:.1f}h total study time across {len(all_lessons)} lessons")
     results = []
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {}
+        per_lesson_target = target_elapsed_seconds / len(all_lessons) if target_elapsed_seconds else None
         for idx, lesson_url in enumerate(all_lessons):
             if idx > 0 and delay > 0:
                 sleep(delay)
-            future = executor.submit(bot.solve_quiz, lesson_url)
+            future = executor.submit(bot.solve_quiz, lesson_url, per_lesson_target)
             futures[future] = lesson_url
 
         for future in as_completed(futures):
