@@ -1,6 +1,7 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from time import sleep
+from random import uniform
 from threading import Lock
 
 from fastapi import FastAPI, Header, HTTPException, BackgroundTasks
@@ -91,6 +92,12 @@ def run_job(payload: RunRequest):
     # in this run (per-question time jittered around the lesson's share).
     target_elapsed_hours = payload.config.get("targetElapsedHours")
     target_elapsed_seconds = float(target_elapsed_hours) * 3600 if target_elapsed_hours else None
+    # Optional: spread the run across N hours. LearnDash stamps each quiz with
+    # server-side time() at submission (not spoofable via POST), so the only
+    # way to get natural-looking dates on the profile is to actually submit
+    # at intervals — one lesson every (spread/lessons) hours, jittered.
+    spread_hours = payload.config.get("spreadHours")
+    spread_seconds = float(spread_hours) * 3600 if spread_hours else None
 
     emit(cb, key, "Starting Andrew Biggs automation", status="running")
 
@@ -116,10 +123,14 @@ def run_job(payload: RunRequest):
         except Exception as e:
             emit(cb, key, f"Failed to read course: {e}", level="warn")
 
-    # Complete video-gated topics first (each lesson's steps must be done
-    # before the lesson itself counts as complete even after passing its quiz)
-    topics_done = 0
-    for lesson_url in all_lessons:
+    if not all_lessons:
+        emit(cb, key, "No lessons found", level="warn", status="failed")
+        return
+
+    def complete_lesson_steps(lesson_url):
+        """Complete a lesson's video-gated topics (must be done before the
+        lesson counts as complete even after passing its quiz)."""
+        done = 0
         try:
             topic_urls, _ = bot.get_lesson_steps(lesson_url)
             for topic_url in topic_urls:
@@ -127,41 +138,65 @@ def run_job(payload: RunRequest):
                     continue
                 res = bot.complete_topic(topic_url)
                 if res.get("status") == "success":
-                    topics_done += 1
+                    done += 1
         except Exception as e:
             emit(cb, key, f"Topic step failed: {e}", level="warn")
-    if topics_done:
-        emit(cb, key, f"Completed {topics_done} video/topic steps")
+        return done
 
-    if not all_lessons:
-        emit(cb, key, "No lessons found", level="warn", status="failed")
-        return
-
-    emit(cb, key, f"Solving {len(all_lessons)} lessons")
-    if target_elapsed_seconds:
-        emit(cb, key, f"Adding {target_elapsed_seconds/3600:.1f}h total study time across {len(all_lessons)} lessons")
     results = []
+    per_lesson_target = target_elapsed_seconds / len(all_lessons) if target_elapsed_seconds else None
 
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        futures = {}
-        per_lesson_target = target_elapsed_seconds / len(all_lessons) if target_elapsed_seconds else None
+    if spread_seconds:
+        # Sequential mode: one lesson (topics + quiz) at a time, waiting
+        # between lessons so profile timestamps look like natural study
+        # sessions instead of a 2-minute burst.
+        interval = spread_seconds / len(all_lessons)
+        emit(cb, key, f"Spread mode: {len(all_lessons)} lessons across {spread_seconds/3600:.1f}h (one every {interval/60:.0f} min)")
         for idx, lesson_url in enumerate(all_lessons):
-            if idx > 0 and delay > 0:
-                sleep(delay)
-            future = executor.submit(bot.solve_quiz, lesson_url, per_lesson_target)
-            futures[future] = lesson_url
+            complete_lesson_steps(lesson_url)
+            result = bot.solve_quiz(lesson_url, per_lesson_target)
+            results.append(result)
+            if result.get("status") == "success":
+                emit(cb, key, f"Completed lesson {idx+1}/{len(all_lessons)}", payload={"url": lesson_url})
+            else:
+                emit(cb, key, result.get("error", "Lesson error"), level="error", payload=result)
+            if idx < len(all_lessons) - 1:
+                # ±15% jitter so the gaps aren't perfectly uniform
+                wait = interval * uniform(0.85, 1.15)
+                emit(cb, key, f"Waiting {wait/60:.0f} min before next lesson", payload={"next_in_min": round(wait/60)})
+                sleep(wait)
+    else:
+        # Fast mode: complete all video-gated topics first, then solve
+        # quizzes in parallel.
+        topics_done = 0
+        for lesson_url in all_lessons:
+            topics_done += complete_lesson_steps(lesson_url)
+        if topics_done:
+            emit(cb, key, f"Completed {topics_done} video/topic steps")
 
-        for future in as_completed(futures):
-            try:
-                result = future.result()
-                results.append(result)
-                status = result.get("status")
-                if status == "success":
-                    emit(cb, key, f"Completed lesson", payload={"url": result.get("url")})
-                elif status == "error":
-                    emit(cb, key, result.get("error", "Lesson error"), level="error", payload=result)
-            except Exception as e:
-                emit(cb, key, str(e), level="error")
+        emit(cb, key, f"Solving {len(all_lessons)} lessons")
+        if target_elapsed_seconds:
+            emit(cb, key, f"Adding {target_elapsed_seconds/3600:.1f}h total study time across {len(all_lessons)} lessons")
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {}
+            for idx, lesson_url in enumerate(all_lessons):
+                if idx > 0 and delay > 0:
+                    sleep(delay)
+                future = executor.submit(bot.solve_quiz, lesson_url, per_lesson_target)
+                futures[future] = lesson_url
+
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    results.append(result)
+                    status = result.get("status")
+                    if status == "success":
+                        emit(cb, key, f"Completed lesson", payload={"url": result.get("url")})
+                    elif status == "error":
+                        emit(cb, key, result.get("error", "Lesson error"), level="error", payload=result)
+                except Exception as e:
+                    emit(cb, key, str(e), level="error")
 
     success = sum(1 for r in results if r.get("status") == "success")
     errors = sum(1 for r in results if r.get("status") == "error")

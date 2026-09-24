@@ -37,6 +37,7 @@ export default function AndrewBiggsRunPage() {
   const [extraUrls, setExtraUrls] = useState("");
   const [delay, setDelay] = useState("0.5");
   const [targetElapsedHours, setTargetElapsedHours] = useState("");
+  const [spreadHours, setSpreadHours] = useState("");
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [summary, setSummary] = useState<CourseSummary | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
@@ -103,6 +104,7 @@ export default function AndrewBiggsRunPage() {
           courses: selected,
           delay: Number(delay) || 0.5,
           targetElapsedHours: targetElapsedHours ? Number(targetElapsedHours) : null,
+          spreadHours: spreadHours ? Number(spreadHours) : null,
         },
       }),
     });
@@ -254,6 +256,18 @@ export default function AndrewBiggsRunPage() {
                   placeholder="e.g. 5 (adds 5h spread across all lessons)"
                   value={targetElapsedHours}
                   onChange={(e) => setTargetElapsedHours(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="spreadHours">Spread over (hours, empty = all at once)</Label>
+                <Input
+                  id="spreadHours"
+                  type="number"
+                  min="0.5"
+                  step="1"
+                  placeholder="e.g. 72 (one lesson every few hours — natural dates)"
+                  value={spreadHours}
+                  onChange={(e) => setSpreadHours(e.target.value)}
                 />
               </div>
               <Button type="submit" disabled={loading || selected.length === 0} className="w-full">
