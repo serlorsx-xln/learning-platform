@@ -136,6 +136,62 @@ class Ondemand(Client):
             "status": "complete" if total > 0 and complete == total else ("in_progress" if complete > 0 else "not_started"),
         }
 
+    def get_lesson_steps(self, lesson_url: str):
+        """Return (topic_urls, quiz_url) parsed from a lesson page's content list."""
+        try:
+            r = self.get(lesson_url)
+            soup = BeautifulSoup(r.text, "html.parser")
+            topic_urls, quiz_url = [], None
+            topic_list = soup.find("div", class_="ld-lesson-topic-list")
+            if topic_list:
+                for a in topic_list.find_all("a", href=True):
+                    href = a["href"]
+                    if href not in topic_urls:
+                        topic_urls.append(href)
+                    if "/quizzes/" in href and quiz_url is None:
+                        quiz_url = href
+            return topic_urls, quiz_url
+        except Exception as e:
+            logger.error("[ERROR] Failed to read lesson steps from %s: %s", lesson_url, str(e))
+            return [], None
+
+    def complete_topic(self, topic_url: str) -> dict:
+        """Complete a topic that may be gated by LearnDash video progression.
+
+        The front-end writes a 'video_state: complete' cookie when the video
+        finishes and only then enables the Mark Complete button; the server
+        validates that cookie on submit. We set the cookie ourselves and post
+        the sfwd-mark-complete form directly."""
+        try:
+            r = self.get(topic_url)
+            soup = BeautifulSoup(r.text, "html.parser")
+
+            # Video progression gate — set the completion cookie like the JS does
+            video_div = soup.find("div", class_="ld-video")
+            if video_div:
+                cookie_key = video_div.get("data-video-cookie-key")
+                if cookie_key:
+                    self.cookies.set(
+                        cookie_key,
+                        dumps({"video_time": 300, "video_state": "complete"}),
+                        domain="ondemand.andrewbiggs.com",
+                        path="/",
+                    )
+
+            form = soup.find("form", class_="sfwd-mark-complete")
+            if not form:
+                return {"status": "skipped", "reason": "no mark-complete form (already complete?)", "url": topic_url}
+
+            data = {i.get("name"): i.get("value", "") for i in form.find_all("input") if i.get("name")}
+            mr = self.post(topic_url, data=data)
+            if mr.status_code == 200:
+                logger.info("[SUCCESS] Topic completed: %s", topic_url)
+                return {"status": "success", "url": topic_url}
+            return {"status": "error", "error": "HTTP %s" % mr.status_code, "url": topic_url}
+        except Exception as e:
+            logger.error("[ERROR] Failed completing topic %s: %s", topic_url, str(e))
+            return {"status": "error", "error": str(e), "url": topic_url}
+
     def get_quiz_data(self, url: str):
         try:
             lesson_resp = self.get(url)
@@ -224,13 +280,18 @@ class Ondemand(Client):
             question_times = [max(120, min(1200, floor(gauss(300, 120)))) for _ in questions]
         total_quiz_time = sum(question_times) + floor(uniform(180, 600))
 
+        # LearnDash's wp_pro_quiz_completed() handler returns early when the
+        # HTTP Referer is missing — the score/pass never gets recorded. A real
+        # browser always sends the quiz page URL as referer, so we do too.
+        ajax_headers = {"referer": quiz_url}
+
         self.post("/wp-admin/admin-ajax.php", data={
             "action": "wp_pro_quiz_load_quiz_data",
             "quizId": quiz_id,
             "quiz_nonce": quiz_nonce,
             "quiz": quiz_post_id,
             "course_id": course_id
-        })
+        }, headers=ajax_headers)
 
         dummy_responses = {}
         for q in questions:
@@ -250,7 +311,7 @@ class Ondemand(Client):
             "data[course_id]": course_id,
             "data[quiz_nonce]": quiz_nonce,
             "data[responses]": dumps(dummy_responses)
-        })
+        }, headers=ajax_headers)
 
         if dummy_request.status_code != 200:
             return {"status": "error", "error": "Phase 1 Failed. HTTP %s" % dummy_request.status_code, "url": url}
@@ -258,13 +319,18 @@ class Ondemand(Client):
         # Fresh nonces for the correct submission
         quiz_id, quiz_nonce, course_id, quiz_post_id, questions, lesson_id, topic_id, quiz_url = self.get_quiz_data(url)
 
+        # LearnDash's wp_pro_quiz_completed() handler returns early when the
+        # HTTP Referer is missing — the score/pass never gets recorded. A real
+        # browser always sends the quiz page URL as referer, so we do too.
+        ajax_headers = {"referer": quiz_url}
+
         self.post("/wp-admin/admin-ajax.php", data={
             "action": "wp_pro_quiz_load_quiz_data",
             "quizId": quiz_id,
             "quiz_nonce": quiz_nonce,
             "quiz": quiz_post_id,
             "course_id": course_id
-        })
+        }, headers=ajax_headers)
 
         try:
             answers_data = loads(dummy_request.text)
@@ -304,7 +370,7 @@ class Ondemand(Client):
             "data[course_id]": course_id,
             "data[quiz_nonce]": quiz_nonce,
             "data[responses]": dumps(correct_responses)
-        })
+        }, headers=ajax_headers)
 
         try:
             phase3_data = loads(phase3_request.text)
@@ -344,7 +410,7 @@ class Ondemand(Client):
             "timespent": total_quiz_time,
             "forms": "{}",
             "quiz_nonce": quiz_nonce
-        })
+        }, headers=ajax_headers)
 
         if complete_request.status_code != 200:
             return {"status": "error", "error": "Phase 4 Failed. HTTP %s" % complete_request.status_code, "url": url}

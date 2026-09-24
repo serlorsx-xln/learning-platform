@@ -115,6 +115,23 @@ def run_job(payload: RunRequest):
         except Exception as e:
             emit(cb, key, f"Failed to read course: {e}", level="warn")
 
+    # Complete video-gated topics first (each lesson's steps must be done
+    # before the lesson itself counts as complete even after passing its quiz)
+    topics_done = 0
+    for lesson_url in all_lessons:
+        try:
+            topic_urls, _ = bot.get_lesson_steps(lesson_url)
+            for topic_url in topic_urls:
+                if "/topics/" not in topic_url:
+                    continue
+                res = bot.complete_topic(topic_url)
+                if res.get("status") == "success":
+                    topics_done += 1
+        except Exception as e:
+            emit(cb, key, f"Topic step failed: {e}", level="warn")
+    if topics_done:
+        emit(cb, key, f"Completed {topics_done} video/topic steps")
+
     if not all_lessons:
         emit(cb, key, "No lessons found", level="warn", status="failed")
         return
