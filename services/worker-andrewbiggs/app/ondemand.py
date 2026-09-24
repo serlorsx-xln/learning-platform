@@ -136,6 +136,29 @@ class Ondemand(Client):
             "status": "complete" if total > 0 and complete == total else ("in_progress" if complete > 0 else "not_started"),
         }
 
+    def enroll_course(self, course_url: str) -> bool:
+        """Join a free course (paid courses still require checkout).
+
+        The form submit needs the course_join nonce, the submit button value
+        and a Referer header — without those the POST returns 200 but the
+        enrollment silently doesn't happen."""
+        try:
+            r = self.get(course_url)
+            soup = BeautifulSoup(r.text, "html.parser")
+            form = soup.find("form", action=lambda a: a and course_url.rstrip("/").split("/")[-1] in (a or ""))
+            if not form:
+                return True  # no enroll form — already enrolled
+            data = {i.get("name"): i.get("value", "") for i in form.find_all("input") if i.get("name")}
+            btn = form.find("input", {"type": "submit"})
+            if btn and btn.get("name"):
+                data[btn["name"]] = btn.get("value", "")
+            er = self.post(course_url, data=data, headers={"referer": course_url})
+            logger.info("[ENROLL] %s → %s", course_url, er.status_code)
+            return er.status_code == 200
+        except Exception as e:
+            logger.error("[ERROR] Failed to enroll %s: %s", course_url, str(e))
+            return False
+
     def get_lesson_steps(self, lesson_url: str):
         """Return (topic_urls, quiz_url) parsed from a lesson page's content list."""
         try:

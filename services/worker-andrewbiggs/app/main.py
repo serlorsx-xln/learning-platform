@@ -105,6 +105,7 @@ def run_job(payload: RunRequest):
     all_lessons = []
     for course_url in courses:
         try:
+            bot.enroll_course(course_url)
             inspection = bot.inspect_course(course_url)
             incomplete = [l["url"] for l in inspection.get("lessons", []) if not l.get("isComplete")]
             if incomplete:
